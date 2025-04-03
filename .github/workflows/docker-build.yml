@@ -38,7 +38,7 @@ jobs:
             runner: ubuntu-latest
             arch-suffix: amd64
           - platform: linux/arm64
-            runner: ubuntu-latest-arm64
+            runner: ubuntu-latest-arm
             arch-suffix: arm64
     
     permissions:
