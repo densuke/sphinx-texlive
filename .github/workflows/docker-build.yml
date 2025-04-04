@@ -101,22 +101,23 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Download artifacts
+      - name: Download amd64 artifact
         uses: actions/download-artifact@v4
         with:
           name: digest-amd64
-          path: digest-amd64.txt
-      - name: Download artifacts
+          path: ./digest-amd64.txt  # ファイル名を明示的に指定
+
+      - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
           name: digest-arm64
-          path: digest-arm64.txt
+          path: ./digest-arm64.txt  # ファイル名を明示的に指定
 
       - name: Validate digests
         id: validate-digests
         run: |
-          DIGEST_AMD64=$(cat digest-amd64.txt | tr -d '\n')
-          DIGEST_ARM64=$(cat digest-arm64.txt | tr -d '\n')
+          DIGEST_AMD64=$(cat ./digest-amd64.txt | tr -d '\n')
+          DIGEST_ARM64=$(cat ./digest-arm64.txt | tr -d '\n')
           if [ -z "$DIGEST_AMD64" ] || [ -z "$DIGEST_ARM64" ]; then
             echo "Error: One or more digests are empty."
             exit 1
