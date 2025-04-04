@@ -84,6 +84,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          provenance: false
 
       - name: Save image digest
         id: save-digest
