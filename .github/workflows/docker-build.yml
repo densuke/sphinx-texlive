@@ -116,8 +116,8 @@ jobs:
       - name: Validate digests
         id: validate-digests
         run: |
-          DIGEST_AMD64=$(cat ./amd64/digest-amd64.txt | tr -d '\n')
-          DIGEST_ARM64=$(cat ./arm64/digest-arm64.txt | tr -d '\n')
+          DIGEST_AMD64=$(cat ./amd64/digest-amd64.txt | tr '\n' ' ' | sed 's; $;;')
+          DIGEST_ARM64=$(cat ./arm64/digest-arm64.txt | tr '\n' ' ' | sed 's; $;;')
           if [ -z "$DIGEST_AMD64" ] || [ -z "$DIGEST_ARM64" ]; then
             echo "Error: One or more digests are empty."
             exit 1
