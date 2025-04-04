@@ -143,4 +143,5 @@ jobs:
             docker buildx imagetools create \
               -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
               ${{ steps.validate-digests.outputs.digest_amd64 }} \
-              ${{ steps.validate-digests.outputs.digest_arm64 }}
+              ${{ steps.validate-digests.outputs.digest_arm64 }} \
+          fi
