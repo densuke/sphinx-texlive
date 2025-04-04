@@ -127,11 +127,13 @@ jobs:
 
       - name: Create and push manifest
         run: |
-          docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }} \
+          docker buildx imagetools create \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }} \
             ${{ steps.validate-digests.outputs.digest_amd64 }} \
             ${{ steps.validate-digests.outputs.digest_arm64 }}
           
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            docker buildx imagetools create \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
               ${{ steps.validate-digests.outputs.digest_amd64 }} \
               ${{ steps.validate-digests.outputs.digest_arm64 }}
