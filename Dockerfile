@@ -36,32 +36,13 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 EOF
 
-# Pythonのデフォルトをバージョン3に設定
-RUN ln -sf /usr/bin/python3 /usr/bin/python; which python
-
 # 日本語ロケールの環境変数を設定
 ENV LANG=ja_JP.UTF-8
 ENV LC_ALL=ja_JP.UTF-8
 
 # ここで一旦ビルド完了
 
-FROM base
-ARG USER=worker
-ARG UID=1000
-ARG GID=1000
-ARG USER_HOME=/home/${USER}
-ARG USER_SHELL=/bin/bash
-
-# ユーザの作成
-RUN <<EOM
-groupadd -g ${GID} ${USER}
-useradd -m -s ${USER_SHELL} -u ${UID} -g ${USER} -G sudo ${USER}
-mkdir -p ${USER_HOME}/.ssh
-chown -R ${UID}:${GID} ${USER_HOME}
-chmod 700 ${USER_HOME}/.ssh
-echo "${USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-EOM
-
+FROM base AS texlive
 
 # TeXLiveのインストール、TeXLiveのサイトから最新のinstall-tlを取得して行う
 # 作業の際、余計なデータが残らないように、install-tlは/tmp以下にダウンロードして展開し、呼び出す
@@ -93,10 +74,30 @@ set -x
 PATH="/opt/texlive/bin/$(uname -m)-linux:$PATH" which latexmk # テスト
 EOM
 
+FROM texlive
+ARG USER=worker
+ARG UID=1000
+ARG GID=1000
+ARG USER_HOME=/home/${USER}
+ARG USER_SHELL=/bin/bash
+
+# ユーザの作成
+RUN <<EOM
+groupadd -g ${GID} ${USER}
+useradd -m -s ${USER_SHELL} -u ${UID} -g ${USER} -G sudo ${USER}
+mkdir -p ${USER_HOME}/.ssh
+chown -R ${UID}:${GID} ${USER_HOME}
+chmod 700 ${USER_HOME}/.ssh
+echo "${USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+EOM
+
+
 USER ${USER}
 # uvツールのインストール
+ENV PATH=/home/${USER}/.local/bin:$PATH
 RUN <<EOF
 curl -fsSL https://astral.sh/uv/install.sh | bash
+which uv
 EOF
 
 WORKDIR /app
