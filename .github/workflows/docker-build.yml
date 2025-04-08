@@ -154,3 +154,61 @@ jobs:
               ${{ steps.validate-digests.outputs.digest_amd64 }} \
               ${{ steps.validate-digests.outputs.digest_arm64 }}
           fi
+
+  # 関連リポジトリのcompose.ymlを更新しPRを作成するジョブ
+  update-related-repo:
+    name: Update Related Repository
+    runs-on: ubuntu-latest
+    needs: [merge, prepare]  # prepare ジョブも依存に追加
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout related repository
+        uses: actions/checkout@v4
+        with:
+          repository: densuke/2025-network-doc
+          path: 2025-network-doc
+          token: ${{ secrets.PAT_TOKEN }}  # Personal Access Token with repo access
+
+      - name: Update compose.yml
+        run: |
+          cd 2025-network-doc
+          # 日付を取得してブランチ名に使用
+          DATE=$(date +%Y%m%d)
+          BRANCH_NAME="update-sphinx-image-$DATE"
+          # エポック秒のタグを使用ds.prepare.outputs.epoch }}"
+          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }}"
+          
+          # Gitの設定
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # 新しいブランチを作成
+          git checkout -b $BRANCH_NAME
+          
+          # compose.ymlの更新（シンプルな置換の例）
+          # 正規表現でイメージ名の行を探して更新
+          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9_-]+/sphinx-texlive:[a-zA-Z0-9_.-]+|image: $NEW_IMAGE|g" compose.yml
+          
+          # 変更をコミット
+          git add compose.yml
+          git commit -m "Update Sphinx image to $NEW_IMAGE"
+          
+          # GitHub にプッシュ
+          git push --set-upstream origin $BRANCH_NAME
+          
+          # PRの作成
+          PR_TITLE="Update Sphinx image to version ${{ needs.prepare.outputs.epoch }}"
+          PR_BODY="This PR updates the Sphinx image reference in compose.yml to the specific version: $NEW_IMAGE"
+          
+          # GitHub CLI を使用してPRを作成
+          gh pr create --repo densuke/2025-network-doc \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base main \
+            --head $BRANCH_NAME
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
