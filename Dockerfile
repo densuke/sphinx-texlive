@@ -58,8 +58,8 @@ mv install-tl-*/ install-tl.d
 cd install-tl.d
 for i in 1 2 3; do
     ./install-tl --profile=/docker/texlive.profile --lang=ja && break || {
-        echo "Install failed, retrying in 10 seconds... ($i/3)"
-        sleep 10
+        echo "Install failed, retrying in 10+ seconds... ($i/3)"
+        sleep $((10 + RANDOM % 3))  # 混雑緩和のため若干ラグを足せるように修正
     }
 done
 hash -r
