@@ -56,7 +56,14 @@ curl -L -O https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
 tar xvzf install-tl-unx.tar.gz
 mv install-tl-*/ install-tl.d
 cd install-tl.d
-./install-tl --profile=/docker/texlive.profile --lang=ja
+# TeXLiveのインストール時にコケることが時々あるため、ウェイトを設けて再試行するようにして成功率アップ
+# 原因はおそらくサーバー側が無応答と思われるが正直不明です。
+for i in 1 2 3; do
+    ./install-tl --profile=/docker/texlive.profile --lang=ja && break || {
+        echo "Install failed, retrying in 10+ seconds... ($i/3)"
+        sleep $((10 + RANDOM % 3))  # 混雑緩和のため若干ラグを足せるように修正
+    }
+done
 hash -r
 tlmgr install wrapfig capt-of framed upquote needspace \
     tabulary varwidth titlesec latexmk cmap float wrapfig \

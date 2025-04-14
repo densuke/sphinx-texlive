@@ -61,6 +61,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to the Container registry
+# Pull Request時はログイン不要
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -81,7 +83,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          push: true
+# Pull Request時はpushしない
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -90,11 +93,15 @@ jobs:
           provenance: false
 
       - name: Save image digest
+# Pull Request時はダイジェスト保存不要
+        if: github.event_name != 'pull_request'
         id: save-digest
         run: |
           echo "${{ steps.meta.outputs.tags }}" > digest-${{ matrix.arch-suffix }}.txt
         # アーティファクトとしてアップロード
       - name: Upload artifact
+# Pull Request時はアーティファクトアップロード不要
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: digest-${{ matrix.arch-suffix }}
@@ -160,7 +167,8 @@ jobs:
     name: Update Related Repository
     runs-on: ubuntu-latest
     needs: [merge, prepare]  # prepare ジョブも依存に追加
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # mainブランチへのpushイベント時のみ実行するように条件を修正
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write
@@ -179,7 +187,7 @@ jobs:
           # 日付を取得してブランチ名に使用
           DATE=$(date +%Y%m%d)
           BRANCH_NAME="update-sphinx-image-$DATE"
-          # エポック秒のタグを使用ds.prepare.outputs.epoch }}"
+          # エポック秒のタグを使用
           NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }}"
           
           # Gitの設定
