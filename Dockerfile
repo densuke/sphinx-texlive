@@ -56,6 +56,8 @@ curl -L -O https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
 tar xvzf install-tl-unx.tar.gz
 mv install-tl-*/ install-tl.d
 cd install-tl.d
+# TeXLiveのインストール時にコケることが時々あるため、ウェイトを設けて再試行するようにして成功率アップ
+# 原因はおそらくサーバー側が無応答と思われるが正直不明です。
 for i in 1 2 3; do
     ./install-tl --profile=/docker/texlive.profile --lang=ja && break || {
         echo "Install failed, retrying in 10+ seconds... ($i/3)"
