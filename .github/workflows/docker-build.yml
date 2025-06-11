@@ -1,172 +1,162 @@
-name: Build and Push Docker Image
+name: イメージ作成とpush
 
 on:
   # 毎週月曜日の日本時間午後3時(UTC 06:00)に実行
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '0 12 * * 0' # 毎週日曜日の12:00(UTC)に実行
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   # 手動実行のためのトリガー
   workflow_dispatch:
- 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
-# ジョブの並列実行は起きないようにする
+
+# GHCRへプッシュできるよう権限を設定
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+# 並列起動を防ぐため、最後の作業のみ動くようにする
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  # タイムスタンプを生成する共通ジョブ
-  prepare:
-    name: Prepare Build Parameters
-    runs-on: ubuntu-latest
-    outputs:
-      epoch: ${{ steps.time.outputs.epoch }}  # この値がジョブの出力として定義される
-    
-    steps:
-      - name: Generate common timestamp
-        id: time
-        run: echo "epoch=$(date +%s)" >> $GITHUB_OUTPUT  # GITHUB_OUTPUTにエントリを追加
-
-  # 各アーキテクチャごとのビルドジョブ
+  # actかどうかを確認するためのチェックジョブ
+  test_act:
+      runs-on: ubuntu-latest
+      outputs:
+        act: ${{ steps.act.outputs.act }}
+      timeout-minutes: 1
+      steps:
+      - name: actかどうかを確認
+        id: act
+        run: |
+          if [ -n "$ACT" ]; then
+            echo "act=true" >> $GITHUB_OUTPUT
+          else
+            echo "act=false" >> $GITHUB_OUTPUT
+          fi
+  make_serial:
+      runs-on: ubuntu-latest
+      timeout-minutes: 1
+      outputs:
+        serial: ${{ steps.serial.outputs.serial }}
+      steps:
+      - name: 日時のシリアル番号を作成(後でタグとして使います)
+        id: serial
+        run: |
+          echo "serial=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
   build:
-    name: Build ${{ matrix.platform }}
-    runs-on: ${{ matrix.runner }}
-    needs: prepare  # prepareジョブに依存することを宣言
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-24.04
-            arch-suffix: amd64
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-            arch-suffix: arm64
-    
-    permissions:
-      contents: read
-      packages: write  # パッケージへの書き込み権限を確認
-    
-    steps:
-      - name: Checkout repository
+      strategy:
+        fail-fast: true
+        matrix:
+          # linux/amd64ならubuntu-24.04で、
+          # linux/arm64ならubuntu-24.04-arm64でビルドを行う
+          include:
+            - platform: linux/amd64
+              runner: ubuntu-24.04
+              tag_suffix: amd64
+            - platform: linux/arm64
+              runner: ${{ needs.test_act.outputs.act == 'true' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+              tag_suffix: arm64
+      runs-on: ${{ matrix.runner }}
+      name: イメージビルド(${{ matrix.platform }})
+      needs: 
+          - make_serial
+          - test_act
+      timeout-minutes: 5
+      # amd64とarm64のビルドのため、ストラテジーを設定
+      # それぞれ使用するランナーはubuntu-24.04およびubuntu-24.04-arm64とする
+      steps:
+      - name: ソースの取得
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-# Pull Request時はログイン不要
-        if: github.event_name != 'pull_request'
+      - name: Dockerの準備
+        uses: docker/setup-buildx-action@v2
+      - name: Dockerのストレージの準備(qemu)
+        uses: docker/setup-qemu-action@v2
+      - name: Dockerのログイン
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
+          # GitHubのトークンを使用して、GHCRへログインします。
+          # これにより、イメージをpushすることができるようになります。
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ needs.prepare.outputs.epoch }}-${{ matrix.arch-suffix }}  # ここでprepareジョブの出力を参照
-            type=raw,value=latest-${{ matrix.arch-suffix }}
-
-      - name: Build and push architecture specific Docker image
-        uses: docker/build-push-action@v5
+      - name: イメージビルドと送信
+        uses: docker/build-push-action@v3
         with:
           context: .
+          push: ${{ needs.test_act.outputs.act != 'true' }}
+          load: ${{ needs.test_act.outputs.act == 'true' }}
+          tags: |
+              ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-${{ matrix.tag_suffix }}
           platforms: ${{ matrix.platform }}
-# Pull Request時はpushしない
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # unknown/unknown対策
           provenance: false
-
-      - name: Save image digest
-# Pull Request時はダイジェスト保存不要
-        if: github.event_name != 'pull_request'
-        id: save-digest
-        run: |
-          echo "${{ steps.meta.outputs.tags }}" > digest-${{ matrix.arch-suffix }}.txt
-        # アーティファクトとしてアップロード
-      - name: Upload artifact
-# Pull Request時はアーティファクトアップロード不要
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: digest-${{ matrix.arch-suffix }}
-          path: digest-${{ matrix.arch-suffix }}.txt
-
-  # 各アーキテクチャのイメージをマージしてプッシュするジョブ
-  merge:
-    name: Merge and Push Multi-arch Image
-    runs-on: ubuntu-latest
-    needs: [prepare, build]  # 両方のジョブに依存
-    if: github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      packages: write  # パッケージへの書き込み権限を確認
-    steps:
-      - name: Log in to the Container registry
+          build-args: |
+              # ビルド時に必要な引数を指定します。
+              # ここでは、シリアル番号をARGとして渡しています。
+              SERIAL=${{ needs.make_serial.outputs.serial }}
+  create_manifest:
+      name: マニフェストの作成
+      runs-on: ubuntu-latest
+      timeout-minutes: 1
+      needs: 
+          - build
+          - make_serial
+          - test_act
+      if: ${{ needs.test_act.outputs.act != 'true' }}
+      steps:
+      - name: Dockerのログイン
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download amd64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: digest-amd64
-          path: ./amd64/  # ディレクトリとして保存
-
-      - name: Download arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: digest-arm64
-          path: ./arm64/  # ディレクトリとして保存
-
-      - name: Validate digests
-        id: validate-digests
+      - name: マニフェストの作成
         run: |
-          DIGEST_AMD64=$(cat ./amd64/digest-amd64.txt | tr '\n' ' ' | sed 's; $;;')
-          DIGEST_ARM64=$(cat ./arm64/digest-arm64.txt | tr '\n' ' ' | sed 's; $;;')
-          if [ -z "$DIGEST_AMD64" ] || [ -z "$DIGEST_ARM64" ]; then
-            echo "Error: One or more digests are empty."
-            exit 1
-          fi
-          echo "digest_amd64=$DIGEST_AMD64" >> $GITHUB_OUTPUT
-          echo "digest_arm64=$DIGEST_ARM64" >> $GITHUB_OUTPUT
+          # マニフェストの作成を行います。
+          # ここでは、linux/amd64とlinux/arm64のイメージをまとめて1つのマニフェストにします。
+          docker manifest create ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }} \
+          ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-amd64 \
+          ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-arm64
+          docker manifest create ghcr.io/${{ github.repository }}:latest \
+          ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-amd64 \
+          ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-arm64
+          # マニフェストのプッシュを行います。
+          docker manifest push ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}
+          docker manifest push ghcr.io/${{ github.repository }}:latest
+  clean:
+      # actで実行していたときは、作ったローカルイメージは削除しておきます
+      name: ローカルイメージの削除
+      needs: 
+          - build
+          - make_serial
+          - test_act
+      if: ${{ needs.test_act.outputs.act == 'true' }}
+      runs-on: ubuntu-latest
+      timeout-minutes: 1
+      steps:
+        - name: イメージの削除
+          run: |
+            # actで実行していたときは、作ったローカルイメージは削除しておきます
+            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-amd64 || true
+            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-arm64 || true
+            # actで実行しているときはアーキテクチャ名の付かないシリアルタグはできないはずですが念のため
+            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }} || true
+            docker image prune -f
 
-      - name: Create and push manifest
-        run: |
-          docker buildx imagetools create \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }} \
-            ${{ steps.validate-digests.outputs.digest_amd64 }} \
-            ${{ steps.validate-digests.outputs.digest_arm64 }}
-          
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            docker buildx imagetools create \
-              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-              ${{ steps.validate-digests.outputs.digest_amd64 }} \
-              ${{ steps.validate-digests.outputs.digest_arm64 }}
-          fi
 
   # 関連リポジトリのcompose.ymlを更新しPRを作成するジョブ
   update-related-repo:
     name: Update Related Repository
     runs-on: ubuntu-latest
-    needs: [merge, prepare]  # prepare ジョブも依存に追加
+    needs: 
+      - build
+      - make_serial
+      - test_act
     # mainブランチへのpushイベント時のみ実行するように条件を修正
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
