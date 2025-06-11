@@ -95,8 +95,10 @@ RUN <<EOM
 # そのため、ユーザーを作成する前に確認して、存在しない場合のみ作成する
 # UID 1000が存在するのであれば、一度既存のユーザーを削除し手再作成する
 if id -u ${UID} >/dev/null 2>&1; then
-    userdel -r ${USER}
-    groupdel ${USER} || true # 一緒に消えていることもある
+    # /etc/passwdからユーザーを取得
+    RMUSER=$(getent passwd ${UID}|cut -d: -f1)
+    userdel -r ${RMUSER}
+    groupdel ${RMUSER} || true # 一緒に消えていることもある
 fi
 
 groupadd -g ${GID} ${USER}
