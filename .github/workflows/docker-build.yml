@@ -23,7 +23,7 @@ permissions:
 
 # 並列起動を防ぐため、最後の作業のみ動くようにする
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: true
 jobs:
   # actかどうかを確認するためのチェックジョブ
