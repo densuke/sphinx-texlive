@@ -174,8 +174,7 @@ jobs:
           cd template-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          DATE=$(date +%Y%m%d)
-          BRANCH_NAME="update-sphinx-image-$DATE"
+          BRANCH_NAME="update-sphinx-image-${{ needs.make_serial.outputs.serial }}"
           echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           git checkout -b $BRANCH_NAME
 
