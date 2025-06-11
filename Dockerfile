@@ -91,6 +91,14 @@ ARG USER_SHELL=/bin/bash
 
 # ユーザの作成
 RUN <<EOM
+# 最近のイメージでは、すでにUID1000のユーザーが存在していることがある
+# そのため、ユーザーを作成する前に確認して、存在しない場合のみ作成する
+# UID 1000が存在するのであれば、一度既存のユーザーを削除し手再作成する
+if id -u ${UID} >/dev/null 2>&1; then
+    userdel -r ${USER}
+    groupdel ${USER} || true # 一緒に消えていることもある
+fi
+
 groupadd -g ${GID} ${USER}
 useradd -m -s ${USER_SHELL} -u ${UID} -g ${USER} -G sudo ${USER}
 mkdir -p ${USER_HOME}/.ssh
