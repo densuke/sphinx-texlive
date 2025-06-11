@@ -13,6 +13,7 @@ apt-get install -y \
     curl \
     gnupg \
     sudo \
+    unzip \
     locales
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -106,5 +107,14 @@ RUN <<EOF
 curl -fsSL https://astral.sh/uv/install.sh | bash
 which uv
 EOF
+# nvmのインストール
+ENV NVM_DIR=/home/${USER}/.nvm
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+# node,npmのインストール
+RUN <<EOM
+    . ${NVM_DIR}/nvm.sh
+    nvm install --lts
+    nvm use --lts
+EOM
 
 WORKDIR /app
