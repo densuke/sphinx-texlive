@@ -171,12 +171,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.REPO }}
-          path: /tmp/pr.$$
+          path: pr-$$
           token: ${{ secrets.PAT_TOKEN }}  # Personal Access Token with repo access
 
       - name: Update compose.yml and create PR
         run: |
-          mkdir -pv /tmp/pr.$$
+          mkdir -pv -pv pr.$$
           cd /tmp/pr.$$
           DATE=$(date +%Y%m%d)
           BRANCH_NAME="update-sphinx-image-$DATE"
