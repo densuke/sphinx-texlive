@@ -176,6 +176,7 @@ jobs:
 
       - name: Update compose.yml and create PR
         run: |
+          mkdir -pv /tmp/pr.$$
           cd /tmp/pr.$$
           DATE=$(date +%Y%m%d)
           BRANCH_NAME="update-sphinx-image-$DATE"
