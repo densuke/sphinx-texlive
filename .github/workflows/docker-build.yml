@@ -66,7 +66,7 @@ jobs:
       needs: 
           - make_serial
           - test_act
-      timeout-minutes: 5
+      timeout-minutes: 20
       # amd64とarm64のビルドのため、ストラテジーを設定
       # それぞれ使用するランナーはubuntu-24.04およびubuntu-24.04-arm64とする
       steps:
