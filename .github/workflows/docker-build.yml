@@ -167,19 +167,10 @@ jobs:
           token: ${{ secrets.TEMPLATE_TOKEN }}
           path: template-repo
 
-      - name: イメージタグの置換
-        id: make-imagename
-        run: |
-          cd template-repo
-          # 例: docker-compose.ymlのイメージタグを置換
-          NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}"
-          echo "image_name_tag=${NEW_IMAGE}" >> $GITHUB_OUTPUT
-          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9._/-]+:[a-zA-Z0-9_.-]+|image: ${NEW_IMAGE}|g" compose.yml
-          # 必要に応じて他ファイルも置換
-
-      - name: 新しいブランチを作成してpush
+      - name: 新しいブランチを作成して切り替え
         id: create-branch
         run: |
+          set -x
           cd template-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -187,6 +178,23 @@ jobs:
           BRANCH_NAME="update-sphinx-image-$DATE"
           echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           git checkout -b $BRANCH_NAME
+
+
+      - name: イメージタグの置換
+        id: make-imagename
+        run: |
+          set -x
+          cd template-repo
+          # 例: docker-compose.ymlのイメージタグを置換
+          NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}"
+          echo "image_name_tag=${NEW_IMAGE}" >> $GITHUB_OUTPUT
+          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9._/-]+:[a-zA-Z0-9_.-]+|image: ${NEW_IMAGE}|g" compose.yml
+          # 必要に応じて他ファイルも置換
+
+      - name: コミットしてプッシュ
+        id: commit-push
+        run: |
+          set -x
           git add .
           git commit -m "Update sphinx-texenv image tag to ${{ needs.make-imagename.outputs.image_name_tag }}"
           git push origin $BRANCH_NAME
