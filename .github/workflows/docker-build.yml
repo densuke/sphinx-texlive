@@ -198,13 +198,13 @@ jobs:
           set -x
           cd template-repo
           git commit -m "Update sphinx-texenv image tag to ${{ needs.make_serial.outputs.serial }}"
-          git push origin $BRANCH_NAME
+          git push --set-upstream origin ${{ steps.create-branch.outputs.branch }}
 
       - name: PRを作成
         run: |
           cd template-repo
           gh pr create --title "Update sphinx-texenv image tag" \
             --body "自動更新: 新しいイメージタグ ${{ needs.make_serial.outputs.serial }} への更新です。" \
-            --base main --head $BRANCH_NAME
+            --base main --head ${{ steps.create-branch.outputs.branch }}
         env:
           GITHUB_TOKEN: ${{ secrets.TEMPLATE_TOKEN }}
