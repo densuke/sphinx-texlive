@@ -152,61 +152,50 @@ jobs:
             docker image prune -f
 
 
-  # 関連リポジトリのcompose.ymlを更新しPRを作成するジョブ
-  update-related-repo:
-    name: Update Related Repository
+  update-template-repo:
     runs-on: ubuntu-latest
-    needs: 
+    needs:
       - build
       - make_serial
       - test_act
-    # mainブランチへのpushイベント時のみ実行するように条件を修正
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-      pull-requests: write
-    
+    if: needs.check-act.outputs.IS_ACT != 'true'
     steps:
-      - name: Checkout related repository
+      - name: リポジトリのクローン
         uses: actions/checkout@v4
         with:
           repository: ${{ env.REPO }}
-          path: pr-$$
-          token: ${{ secrets.PAT_TOKEN }}  # Personal Access Token with repo access
+          token: ${{ secrets.TEMPLATE_TOKEN }}
+          path: template-repo
 
-      - name: Update compose.yml and create PR
+      - name: イメージタグの置換
+        id: make-imagename
         run: |
-          mkdir -pv pr.$$
-          cd pr.$$
+          cd template-repo
+          # 例: docker-compose.ymlのイメージタグを置換
+          NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}"
+          echo "image_name_tag=${NEW_IMAGE}" >> $GITHUB_OUTPUT
+          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9._/-]+:[a-zA-Z0-9_.-]+|image: ${NEW_IMAGE}|g" compose.yml
+          # 必要に応じて他ファイルも置換
+
+      - name: 新しいブランチを作成してpush
+        id: create-branch
+        run: |
+          cd template-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           DATE=$(date +%Y%m%d)
           BRANCH_NAME="update-sphinx-image-$DATE"
-          NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}"
-
-          # Gitの設定
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
-          # 新しいブランチを作成
+          echo "branch=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           git checkout -b $BRANCH_NAME
+          git add .
+          git commit -m "Update sphinx-texenv image tag to ${{ needs.make-imagename.outputs.image_name_tag }}"
+          git push origin $BRANCH_NAME
 
-          # compose.ymlの更新（イメージ名の置換）
-          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9._/-]+:[a-zA-Z0-9_.-]+|image: $NEW_IMAGE|g" compose.yml
-
-          # 変更をコミット
-          git add compose.yml
-          git commit -m "Update Sphinx image to $NEW_IMAGE"
-
-          # GitHub にプッシュ
-          git push --set-upstream origin $BRANCH_NAME
-
-          # PRの作成
-          PR_TITLE="Update Sphinx image to version ${{ needs.make_serial.outputs.serial }}"
-          PR_BODY="This PR updates the Sphinx image reference in compose.yml to the specific version: $NEW_IMAGE"
-
-          gh pr create --repo ${{ env.REPO }} \
-            --title "$PR_TITLE" \
-            --body "$PR_BODY" \
-            --base main \
-            --head $BRANCH_NAME
+      - name: PRを作成
+        run: |
+          cd template-repo
+          gh pr create --title "Update sphinx-texenv image tag" \
+            --body "自動更新: 新しいイメージタグ ${{ needs.make-imagename.outputs.image_name_tag }} への更新です。" \
+            --base main --head $BRANCH_NAME
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TEMPLATE_TOKEN }}
