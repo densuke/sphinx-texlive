@@ -1,4 +1,4 @@
-FROM ubuntu:jammy AS base
+FROM ubuntu@sha256:01a3ee0b5e413cefaaffc6abe68c9c37879ae3cced56a8e088b1649e5b269eee AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
