@@ -11,6 +11,9 @@ on:
   # 手動実行のためのトリガー
   workflow_dispatch:
 
+env:
+  # プルリクエストを送るべきリポジトリ名
+  REPO=densuke/2025-network-doc
 
 # GHCRへプッシュできるよう権限を設定
 permissions:
@@ -167,43 +170,39 @@ jobs:
       - name: Checkout related repository
         uses: actions/checkout@v4
         with:
-          repository: densuke/2025-network-doc
-          path: 2025-network-doc
+          repository: ${{ env.REPO }}
+          path: /tmp/pr.$$
           token: ${{ secrets.PAT_TOKEN }}  # Personal Access Token with repo access
 
-      - name: Update compose.yml
+      - name: Update compose.yml and create PR
         run: |
-          cd 2025-network-doc
-          # 日付を取得してブランチ名に使用
+          cd /tmp/pr.$$
           DATE=$(date +%Y%m%d)
           BRANCH_NAME="update-sphinx-image-$DATE"
-          # エポック秒のタグを使用
-          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.epoch }}"
-          
+          NEW_IMAGE="ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}"
+
           # Gitの設定
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          
+
           # 新しいブランチを作成
           git checkout -b $BRANCH_NAME
-          
-          # compose.ymlの更新（シンプルな置換の例）
-          # 正規表現でイメージ名の行を探して更新
-          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9_-]+/sphinx-texlive:[a-zA-Z0-9_.-]+|image: $NEW_IMAGE|g" compose.yml
-          
+
+          # compose.ymlの更新（イメージ名の置換）
+          sed -i -E "s|image: ghcr.io/[a-zA-Z0-9._/-]+:[a-zA-Z0-9_.-]+|image: $NEW_IMAGE|g" compose.yml
+
           # 変更をコミット
           git add compose.yml
           git commit -m "Update Sphinx image to $NEW_IMAGE"
-          
+
           # GitHub にプッシュ
           git push --set-upstream origin $BRANCH_NAME
-          
+
           # PRの作成
-          PR_TITLE="Update Sphinx image to version ${{ needs.prepare.outputs.epoch }}"
+          PR_TITLE="Update Sphinx image to version ${{ needs.make_serial.outputs.serial }}"
           PR_BODY="This PR updates the Sphinx image reference in compose.yml to the specific version: $NEW_IMAGE"
-          
-          # GitHub CLI を使用してPRを作成
-          gh pr create --repo densuke/2025-network-doc \
+
+          gh pr create --repo ${{ env.REPO }} \
             --title "$PR_TITLE" \
             --body "$PR_BODY" \
             --base main \
