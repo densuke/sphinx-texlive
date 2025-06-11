@@ -13,7 +13,7 @@ on:
 
 env:
   # プルリクエストを送るべきリポジトリ名
-  REPO=densuke/2025-network-doc
+  REPO: densuke/2025-network-doc
 
 # GHCRへプッシュできるよう権限を設定
 permissions:
