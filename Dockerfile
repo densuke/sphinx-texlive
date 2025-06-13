@@ -14,6 +14,7 @@ apt-get install -y \
     gnupg \
     sudo \
     unzip \
+    rsync \
     locales
 apt-get clean
 rm -rf /var/lib/apt/lists/*
