@@ -11,9 +11,6 @@ on:
   # 手動実行のためのトリガー
   workflow_dispatch:
 
-# env:
-#   # プルリクエストを送るべきリポジトリ名
-#   REPO: densuke/2025-network-doc
 
 # GHCRへプッシュできるよう権限を設定
 permissions:
