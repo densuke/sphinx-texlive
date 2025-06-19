@@ -159,10 +159,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        # テンプレートリポジトリの更新は、amd64とarm64の両方で行う
-        - repo:
-          - densuke/2025-network-doc
-          - densuke/sphinx-doc-template
+        - repo: [ "densuke/2025-network-doc", "densuke/sphinx-doc-template" ]
     steps:
       - name: リポジトリのクローン
         uses: actions/checkout@v4
