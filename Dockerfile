@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.7.13 AS uv-source
+
 FROM ubuntu@sha256:b59d21599a2b151e23eea5f6602f4af4d7d31c4e236d22bf0b62b86d2e386b8f AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -113,11 +115,8 @@ EOM
 
 USER ${USER}
 # uvツールのインストール
-ENV PATH=/home/${USER}/.local/bin:$PATH
-RUN <<EOF
-curl -fsSL https://astral.sh/uv/install.sh | bash
-which uv
-EOF
+COPY --from=uv-source /uv /uvx /usr/local/bin/
+
 # nvmのインストール
 ENV NVM_DIR=/home/${USER}/.nvm
 RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
