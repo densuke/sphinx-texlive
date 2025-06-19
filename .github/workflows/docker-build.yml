@@ -11,9 +11,6 @@ on:
   # 手動実行のためのトリガー
   workflow_dispatch:
 
-env:
-  # プルリクエストを送るべきリポジトリ名
-  REPO: densuke/2025-network-doc
 
 # GHCRへプッシュできるよう権限を設定
 permissions:
@@ -159,11 +156,15 @@ jobs:
       - make_serial
       - test_act
     if: needs.check-act.outputs.IS_ACT != 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        - repo: [ "densuke/2025-network-doc", "densuke/sphinx-doc-template" ]
     steps:
       - name: リポジトリのクローン
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.REPO }}
+          repository: ${{ matrix.repo }}
           token: ${{ secrets.TEMPLATE_TOKEN }}
           path: template-repo
 
