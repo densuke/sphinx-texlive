@@ -71,7 +71,7 @@ done
 hash -r
 tlmgr install wrapfig capt-of framed upquote needspace \
     tabulary varwidth titlesec latexmk cmap float wrapfig \
-    fancyvrb booktabs parskip 
+    fancyvrb booktabs parskip adjustbox
 # Clean up
 cd /tmp
 rm -rf /tmp/texlive
