@@ -17,6 +17,7 @@ apt-get install -y \
     sudo \
     unzip \
     rsync \
+    libglib2.0-0 \
     locales
 apt-get clean
 rm -rf /var/lib/apt/lists/*
