@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.9.7 AS uv-source
+FROM ghcr.io/astral-sh/uv:0.9.8 AS uv-source
 
 FROM ubuntu@sha256:66460d557b25769b102175144d538d88219c077c678a49af4afca6fbfc1b5252 AS base
 
