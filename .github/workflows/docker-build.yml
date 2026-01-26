@@ -3,14 +3,13 @@ name: イメージ作成とpush
 on:
   # 毎週月曜日の日本時間午後3時(UTC 06:00)に実行
   schedule:
-    - cron: '0 12 * * 0' # 毎週日曜日の12:00(UTC)に実行
+    - cron: "0 12 * * 0" # 毎週日曜日の12:00(UTC)に実行
   push:
-    branches: [ "main" ]
+    # 全ブランチでビルドを実行(mainブランチのみpush)
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   # 手動実行のためのトリガー
   workflow_dispatch:
-
 
 # GHCRへプッシュできるよう権限を設定
 permissions:
@@ -25,11 +24,11 @@ concurrency:
 jobs:
   # actかどうかを確認するためのチェックジョブ
   test_act:
-      runs-on: ubuntu-latest
-      outputs:
-        act: ${{ steps.act.outputs.act }}
-      timeout-minutes: 1
-      steps:
+    runs-on: ubuntu-latest
+    outputs:
+      act: ${{ steps.act.outputs.act }}
+    timeout-minutes: 1
+    steps:
       - name: actかどうかを確認
         id: act
         run: |
@@ -39,37 +38,37 @@ jobs:
             echo "act=false" >> $GITHUB_OUTPUT
           fi
   make_serial:
-      runs-on: ubuntu-latest
-      timeout-minutes: 1
-      outputs:
-        serial: ${{ steps.serial.outputs.serial }}
-      steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      serial: ${{ steps.serial.outputs.serial }}
+    steps:
       - name: 日時のシリアル番号を作成(後でタグとして使います)
         id: serial
         run: |
           echo "serial=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
   build:
-      strategy:
-        fail-fast: true
-        matrix:
-          # linux/amd64ならubuntu-24.04で、
-          # linux/arm64ならubuntu-24.04-arm64でビルドを行う
-          include:
-            - platform: linux/amd64
-              runner: ubuntu-24.04
-              tag_suffix: amd64
-            - platform: linux/arm64
-              runner: ${{ needs.test_act.outputs.act == 'true' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
-              tag_suffix: arm64
-      runs-on: ${{ matrix.runner }}
-      name: イメージビルド(${{ matrix.platform }})
-      needs: 
-          - make_serial
-          - test_act
-      timeout-minutes: 20
-      # amd64とarm64のビルドのため、ストラテジーを設定
-      # それぞれ使用するランナーはubuntu-24.04およびubuntu-24.04-arm64とする
-      steps:
+    strategy:
+      fail-fast: true
+      matrix:
+        # linux/amd64ならubuntu-24.04で、
+        # linux/arm64ならubuntu-24.04-arm64でビルドを行う
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+            tag_suffix: amd64
+          - platform: linux/arm64
+            runner: ${{ needs.test_act.outputs.act == 'true' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+            tag_suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    name: イメージビルド(${{ matrix.platform }})
+    needs:
+      - make_serial
+      - test_act
+    timeout-minutes: 20
+    # amd64とarm64のビルドのため、ストラテジーを設定
+    # それぞれ使用するランナーはubuntu-24.04およびubuntu-24.04-arm64とする
+    steps:
       - name: ソースの取得
         uses: actions/checkout@v4
       - name: Dockerの準備
@@ -91,24 +90,24 @@ jobs:
           push: ${{ needs.test_act.outputs.act != 'true' && github.ref_name == 'main' }}
           load: ${{ needs.test_act.outputs.act == 'true' || github.ref_name != 'main' }}
           tags: |
-              ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-${{ matrix.tag_suffix }}
+            ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-${{ matrix.tag_suffix }}
           platforms: ${{ matrix.platform }}
           # unknown/unknown対策
           provenance: false
           build-args: |
-              # ビルド時に必要な引数を指定します。
-              # ここでは、シリアル番号をARGとして渡しています。
-              SERIAL=${{ needs.make_serial.outputs.serial }}
+            # ビルド時に必要な引数を指定します。
+            # ここでは、シリアル番号をARGとして渡しています。
+            SERIAL=${{ needs.make_serial.outputs.serial }}
   create_manifest:
-      name: マニフェストの作成
-      runs-on: ubuntu-latest
-      timeout-minutes: 1
-      needs: 
-          - build
-          - make_serial
-          - test_act
-      if: ${{ needs.test_act.outputs.act != 'true' && github.ref_name == 'main' }}
-      steps:
+    name: マニフェストの作成
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs:
+      - build
+      - make_serial
+      - test_act
+    if: ${{ needs.test_act.outputs.act != 'true' && github.ref_name == 'main' }}
+    steps:
       - name: Dockerのログイン
         uses: docker/login-action@v3
         with:
@@ -129,21 +128,21 @@ jobs:
           docker manifest push ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}
           docker manifest push ghcr.io/${{ github.repository }}:latest
   clean:
-      # actで実行していたときは、作ったローカルイメージは削除しておきます
-      name: ローカルイメージの削除
-      needs: 
-          - build
-          - make_serial
-          - test_act
-      if: ${{ needs.test_act.outputs.act == 'true' }}
-      runs-on: ubuntu-latest
-      timeout-minutes: 1
-      steps:
-        - name: イメージの削除
-          run: |
-            # actで実行していたときは、作ったローカルイメージは削除しておきます
-            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-amd64 || true
-            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-arm64 || true
-            # actで実行しているときはアーキテクチャ名の付かないシリアルタグはできないはずですが念のため
-            docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }} || true
-            docker image prune -f
+    # actで実行していたときは、作ったローカルイメージは削除しておきます
+    name: ローカルイメージの削除
+    needs:
+      - build
+      - make_serial
+      - test_act
+    if: ${{ needs.test_act.outputs.act == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: イメージの削除
+        run: |
+          # actで実行していたときは、作ったローカルイメージは削除しておきます
+          docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-amd64 || true
+          docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }}-arm64 || true
+          # actで実行しているときはアーキテクチャ名の付かないシリアルタグはできないはずですが念のため
+          docker rmi ghcr.io/${{ github.repository }}:${{ needs.make_serial.outputs.serial }} || true
+          docker image prune -f
