@@ -5,7 +5,9 @@ FROM ubuntu:resolute@sha256:fed6ddb82c61194e1814e93b59cfcb6759e5aa33c4e41bb37823
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 最低限必要そうなものをインストール
-RUN <<EOF
+RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    <<EOF
 apt-get update
 apt-get install -y \
     python3 \
@@ -20,7 +22,6 @@ apt-get install -y \
     libglib2.0-0 \
     locales
 apt-get clean
-rm -rf /var/lib/apt/lists/*
 EOF
 
 # 日本語ロケールとタイムゾーン
@@ -31,14 +32,15 @@ EOF
 ENV TZ=Asia/Tokyo
 
 # GitHub CLI のインストール
-RUN <<EOF
+RUN --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    <<EOF
 curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 apt-get update
 apt-get install -y gh
 apt-get clean
-rm -rf /var/lib/apt/lists/*
 EOF
 
 # 日本語ロケールの環境変数を設定
@@ -51,26 +53,29 @@ FROM base AS texlive
 
 # TeXLiveのインストール、TeXLiveのサイトから最新のinstall-tlを取得して行う
 # 作業の際、余計なデータが残らないように、install-tlは/tmp以下にダウンロードして展開し、呼び出す
-RUN --mount=type=bind,source=.,target=/docker <<EOM
+# texlive.profileのみをバインドすることで、他のファイル変更によるレイヤー無効化を防ぐ
+RUN --mount=type=bind,source=texlive.profile,target=/tmp/texlive.profile <<EOM
 # Install TeXLive
 set -xe
 mkdir -p /tmp/texlive
 cd /tmp/texlive
+# 日本国内のミラー（JAIST）を優先的に使用するように設定
+MIRROR="https://ftp.jaist.ac.jp/pub/CTAN/systems/texlive/tlnet/"
+
 # Download the TeXLive installer
-curl -L -O https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
+curl -L -O ${MIRROR}install-tl-unx.tar.gz
 tar xvzf install-tl-unx.tar.gz
 mv install-tl-*/ install-tl.d
 cd install-tl.d
 # TeXLiveのインストール時にコケることが時々あるため、ウェイトを設けて再試行するようにして成功率アップ
-# 原因はおそらくサーバー側が無応答と思われるが正直不明です。
 for i in 1 2 3; do
-    ./install-tl --profile=/docker/texlive.profile --lang=ja && break || {
+    ./install-tl --profile=/tmp/texlive.profile --lang=ja --repository ${MIRROR} && break || {
         echo "Install failed, retrying in 10+ seconds... ($i/3)"
-        sleep $((10 + RANDOM % 3))  # 混雑緩和のため若干ラグを足せるように修正
+        sleep $((10 + RANDOM % 3))
     }
 done
 hash -r
-tlmgr install wrapfig capt-of framed upquote needspace \
+/opt/texlive/bin/$(uname -m)-linux/tlmgr install wrapfig capt-of framed upquote needspace \
     tabulary varwidth titlesec latexmk cmap float wrapfig \
     fancyvrb booktabs parskip adjustbox
 # Clean up
