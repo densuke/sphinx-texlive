@@ -7,3 +7,4 @@ updates:
     commit-message:
       prefix: "deps(docker)"
     open-pull-requests-limit: 5
+    target-branch: "*"
