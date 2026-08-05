@@ -57,7 +57,12 @@ set -xe
 mkdir -p /tmp/texlive
 cd /tmp/texlive
 # Download the TeXLive installer
-curl -L -O https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
+# mirror.ctan.org は複数ミラーへ振り分けられるため、時々 SSL 証明書の検証に失敗する
+# ミラーへ当たることがある(実例: 2026-08-03 の CI で curl exit 60 でビルド失敗)。
+# --retry だけでは exit 60 のような「転送以外のエラー」は再試行されないため
+# --retry-all-errors を併用し、別のミラーへ当たり直せるようにする。
+curl -L -O --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+    https://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz
 tar xvzf install-tl-unx.tar.gz
 mv install-tl-*/ install-tl.d
 cd install-tl.d
