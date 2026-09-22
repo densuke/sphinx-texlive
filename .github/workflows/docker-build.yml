@@ -18,9 +18,13 @@ permissions:
   packages: write
   id-token: write
 
-# 並列起動を防ぐため、最後の作業のみ動くようにする
+# 並列起動を防ぐため、最後の作業のみ動くようにする。
+# group に ref を含めることで、PR ごと・main ごとに独立したキューになる。
+# (PR は refs/pull/<N>/merge、push/schedule は refs/heads/main)
+# これがないと、無関係な PR ビルド同士や、main への push ビルドと PR ビルドが
+# 相互にキャンセルし合い、PR の検証結果や GHCR への latest 更新が失われる。
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   # actかどうかを確認するためのチェックジョブ
