@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.13.6 AS uv-source
 
-FROM ubuntu@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944 AS base
+FROM ubuntu@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
